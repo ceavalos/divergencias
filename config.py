@@ -38,5 +38,8 @@ TAKE_PROFIT_PERCENT = 6.0  # 6% take profit (3:1 R:R)
 
 # Output settings
 RESULTS_DIR = 'results'
+SIGNALS_DIR = 'signals'  # Directory for signal charts
 PLOT_RESULTS = True
 SAVE_SIGNALS = True
+SAVE_SIGNAL_CHARTS = True  # Toggle for automatic chart generation
+CHART_LOOKBACK_BARS = 100  # Number of bars to show in signal charts

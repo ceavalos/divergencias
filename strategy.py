@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import config
+from chart_generator import SignalChartGenerator
 
 
 class MultiTimeframeStrategy(bt.Strategy):
@@ -62,6 +63,10 @@ class MultiTimeframeStrategy(bt.Strategy):
         
         # Signal log
         self.signals = []
+        
+        # Chart generator (get ticker from data feed name if available)
+        ticker = getattr(self.data_15m, '_name', 'UNKNOWN')
+        self.chart_generator = SignalChartGenerator(ticker) if config.SAVE_SIGNAL_CHARTS else None
         
     def log(self, txt, dt=None):
         """Logging function"""
@@ -270,6 +275,9 @@ class MultiTimeframeStrategy(bt.Strategy):
         # Check if price making lower low but MACD making higher low
         if (price_lows[0][1] < price_lows[1][1] and 
             macd_lows[0][1] > macd_lows[1][1]):
+            # Generate chart if enabled
+            if self.chart_generator:
+                self._generate_signal_chart('bullish', price_lows)
             return True
         
         return False
@@ -298,6 +306,9 @@ class MultiTimeframeStrategy(bt.Strategy):
         # Check if price making higher high but MACD making lower high
         if (price_highs[0][1] > price_highs[1][1] and 
             macd_highs[0][1] < macd_highs[1][1]):
+            # Generate chart if enabled
+            if self.chart_generator:
+                self._generate_signal_chart('bearish', price_highs)
             return True
         
         return False
@@ -372,6 +383,83 @@ class MultiTimeframeStrategy(bt.Strategy):
         self.entry_level = None
         self.signal_type = None
         self.divergence_detected = False
+    
+    def _generate_signal_chart(self, signal_type, pivot_points):
+        """
+        Generate and save a chart for the detected divergence signal
+        
+        Args:
+            signal_type: 'bullish' or 'bearish'
+            pivot_points: List of (index, price) tuples for pivot points
+        """
+        try:
+            # Convert Backtrader data to pandas DataFrames
+            lookback = config.CHART_LOOKBACK_BARS
+            
+            # Get 1H price data
+            price_data = []
+            macd_data = []
+            
+            for i in range(min(lookback, len(self.data_1h))):
+                idx = -i
+                date = self.data_1h.datetime.datetime(idx)
+                
+                price_data.append({
+                    'Date': date,
+                    'Open': self.data_1h.open[idx],
+                    'High': self.data_1h.high[idx],
+                    'Low': self.data_1h.low[idx],
+                    'Close': self.data_1h.close[idx],
+                    'Volume': self.data_1h.volume[idx]
+                })
+                
+                macd_data.append({
+                    'Date': date,
+                    'MACD': self.macd.macd[idx],
+                    'Signal': self.macd.signal[idx],
+                    'Histogram': self.macd.macd[idx] - self.macd.signal[idx]
+                })
+            
+            # Reverse to get chronological order
+            price_data.reverse()
+            macd_data.reverse()
+            
+            # Convert to DataFrames
+            price_df = pd.DataFrame(price_data).set_index('Date')
+            macd_df = pd.DataFrame(macd_data).set_index('Date')
+            
+            # Get divergence indices (convert from relative to absolute dates)
+            if len(pivot_points) >= 2:
+                # pivot_points are (relative_index, price) tuples
+                prev_idx_rel, _ = pivot_points[1]  # Older point
+                curr_idx_rel, _ = pivot_points[0]  # Newer point
+                
+                # Convert to datetime
+                prev_date = self.data_1h.datetime.datetime(-prev_idx_rel)
+                curr_date = self.data_1h.datetime.datetime(-curr_idx_rel)
+                
+                divergence_indices = (prev_date, curr_date)
+            else:
+                divergence_indices = None
+            
+            # Prepare S/R levels
+            sr_levels = {
+                'support': self.support_levels,
+                'resistance': self.resistance_levels
+            }
+            
+            # Generate chart
+            self.chart_generator.generate_divergence_chart(
+                price_data=price_df,
+                macd_data=macd_df,
+                signal_type=signal_type,
+                divergence_indices=divergence_indices,
+                sr_levels=sr_levels,
+                entry_level=self.entry_level
+            )
+            
+        except Exception as e:
+            self.log(f'Error generating chart: {e}')
     
     def stop(self):
         """Called at the end of the backtest"""

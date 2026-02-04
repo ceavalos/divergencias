@@ -95,9 +95,9 @@ def run_backtest(ticker, data_dict):
     cerebro.addstrategy(MultiTimeframeStrategy)
     
     # Add data feeds (order matters: 15M, 1H, 4H)
-    feed_15m = PandasData_15M(dataname=data_15m, name='15m')
-    feed_1h = PandasData_1H(dataname=data_1h, name='1h')
-    feed_4h = PandasData_4H(dataname=data_4h, name='4h')
+    feed_15m = PandasData_15M(dataname=data_15m, name=ticker)
+    feed_1h = PandasData_1H(dataname=data_1h, name=ticker)
+    feed_4h = PandasData_4H(dataname=data_4h, name=ticker)
     
     cerebro.adddata(feed_15m)
     cerebro.adddata(feed_1h)

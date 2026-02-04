@@ -6,6 +6,7 @@ Downloads historical data for multiple timeframes
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import os
 import config
 
 
@@ -25,12 +26,13 @@ class DataLoader:
         self.start_date = start_date or config.START_DATE
         self.end_date = end_date or config.END_DATE
         
-    def download_data(self, interval='1h'):
+    def download_data(self, interval='1h', save_to_file=True):
         """
         Download data for specified interval
         
         Args:
             interval: Data interval ('15m', '1h', '4h', '1d', etc.)
+            save_to_file: If True, save downloaded data to CSV file in download folder
             
         Returns:
             pandas DataFrame with OHLCV data
@@ -68,7 +70,7 @@ class DataLoader:
                 end=end_date,
                 interval=interval,
                 progress=False,
-                multiindex=False
+                multi_level_index =False
             )
             
             if data.empty:
@@ -89,11 +91,46 @@ class DataLoader:
             data = data.dropna()
             
             print(f"Downloaded {len(data)} bars for {self.ticker} ({interval})")
+            
+            # Save to file if requested
+            if save_to_file:
+                self._save_data_to_file(data, interval)
+            
             return data
             
         except Exception as e:
             print(f"Error downloading data for {self.ticker}: {e}")
             return None
+    
+    def _save_data_to_file(self, data, interval):
+        """
+        Save downloaded data to CSV file in download folder
+        
+        Args:
+            data: DataFrame with downloaded data
+            interval: Timeframe interval (e.g., '1h', '15m', '4h')
+        """
+        try:
+            # Create download directory if it doesn't exist
+            #download_dir = 'download'
+            download_dir = 'data'
+            if not os.path.exists(download_dir):
+                os.makedirs(download_dir)
+            
+            # Generate filename with ticker, interval, and timestamp
+            # Format: TICKER_INTERVAL_YYYYMMDD_HHMMSS.csv
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # Clean ticker name (remove special characters)
+            clean_ticker = self.ticker.replace('/', '_').replace('\\', '_')
+            filename = f"{clean_ticker}_{interval}_{timestamp}.csv"
+            filepath = os.path.join(download_dir, filename)
+            
+            # Save to CSV
+            data.to_csv(filepath)
+            print(f"  Saved to: {filepath}")
+            
+        except Exception as e:
+            print(f"  Warning: Could not save file: {e}")
     
     def download_all_timeframes(self):
         """
